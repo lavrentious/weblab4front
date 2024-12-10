@@ -4,21 +4,38 @@ import {
   Stage,
   Text,
 } from "@pixi/react";
-import { Graphics, ICanvas, TextStyle } from "pixi.js";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ColorSource, Graphics, ICanvas, TextStyle } from "pixi.js";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Hit } from "../../hit.model";
+import { convenientPosition, labelPositionToOffset } from "./utils";
 
 const R_PX_MODIFIER = 3;
 const GRID_LINES_MULTIPLIER = 0.8;
 const R_MARK_LEN_PX = 20;
 const FONT_SIZE = 16;
+const FONT_SIZE_SM = 10;
+enum PointColor {
+  SHAPE = 0x80bfff,
+  GRAPH = 0x000000,
+  HIT = 0x00ff00,
+  MISS = 0xff0000,
+  PREVIEW = 0xff66cc,
+  OLD_HIT = 0x00aa00,
+  OLD_MISS = 0xaa0000,
+}
 
 export interface IPoint {
   id: number;
   x: number; // in units
   y: number; // in units
   r: number; // in units
-  color: string; // FIXME
+  color: ColorSource; // FIXME
 }
 
 interface GraphProps {
@@ -54,6 +71,7 @@ const Graph: React.FC<GraphProps> = React.memo(
     const canvasRef = React.useRef<ICanvas | null>(null);
 
     // --- utils ---
+    const initializationTimestamp = useRef(new Date());
     const pseudoR = useMemo(() => {
       return r === null ? 1 : r;
     }, [r]);
@@ -95,6 +113,22 @@ const Graph: React.FC<GraphProps> = React.memo(
 
     const pseudoRPx = useMemo(() => unitsToPx(pseudoR), [pseudoR, unitsToPx]);
 
+    const clientPointToPxPoint = useCallback(
+      (point: { x: number; y: number }): { x: number; y: number } => {
+        if (!canvasRef.current?.getBoundingClientRect) return { x: 0, y: 0 };
+        const x =
+          point.x -
+          canvasRef.current.getBoundingClientRect().x -
+          canvasWidth / 2;
+        const y =
+          point.y -
+          canvasRef.current.getBoundingClientRect().y -
+          canvasHeight / 2;
+        return { x, y };
+      },
+      [canvasWidth, canvasHeight],
+    );
+
     // --- data ---
     const points: IPoint[] = hits.map(
       (hit) =>
@@ -103,7 +137,14 @@ const Graph: React.FC<GraphProps> = React.memo(
           x: hit.x,
           y: hit.y,
           r: hit.r,
-          color: hit.isHit ? "green" : "red", // TODO: point color
+          color:
+            new Date(hit.createdAt) > initializationTimestamp.current
+              ? hit.isHit
+                ? PointColor.HIT
+                : PointColor.MISS
+              : hit.isHit
+                ? PointColor.OLD_HIT
+                : PointColor.OLD_MISS,
         }) as IPoint,
     );
     const rMarks: {
@@ -120,14 +161,10 @@ const Graph: React.FC<GraphProps> = React.memo(
       if (!onClick || !canvasRef.current?.getBoundingClientRect) return;
       if (!r && onClickNoR) return onClickNoR();
 
-      const xPx =
-        e.clientX -
-        canvasRef.current.getBoundingClientRect().x -
-        canvasWidth / 2;
-      const yPx =
-        e.clientY -
-        canvasRef.current.getBoundingClientRect().y -
-        canvasHeight / 2;
+      const { x: xPx, y: yPx } = clientPointToPxPoint({
+        x: e.clientX,
+        y: e.clientY,
+      });
 
       const { x, y } = pxPointToUnitsPoint({ x: xPx, y: yPx });
 
@@ -158,7 +195,7 @@ const Graph: React.FC<GraphProps> = React.memo(
     const drawGrid = useCallback(
       (g: Graphics) => {
         g.clear();
-        g.lineStyle({ color: 0x000000, width: 2, alignment: 0 });
+        g.lineStyle({ color: PointColor.GRAPH, width: 2, alignment: 0 });
         g.moveTo((-canvasWidth / 2) * GRID_LINES_MULTIPLIER, 0);
         g.lineTo((canvasWidth / 2) * GRID_LINES_MULTIPLIER, 0);
         g.moveTo(0, (-canvasHeight / 2) * GRID_LINES_MULTIPLIER);
@@ -171,7 +208,7 @@ const Graph: React.FC<GraphProps> = React.memo(
     const drawShape = useCallback(
       (g: Graphics) => {
         g.clear();
-        g.beginFill(0x0000ff, 0.5);
+        g.beginFill(PointColor.SHAPE, 0.5);
         // quarter circle
         g.arc(0, 0, pseudoRPx / 2, -Math.PI / 2, 0);
         g.moveTo(0, -pseudoRPx / 2);
@@ -207,7 +244,7 @@ const Graph: React.FC<GraphProps> = React.memo(
       const drawLine = useCallback(
         (g: Graphics) => {
           g.clear();
-          g.lineStyle({ color: 0x000000, width: 2, alignment: 0 });
+          g.lineStyle({ color: PointColor.GRAPH, width: 2, alignment: 0 });
           if (direction === "horizontal") {
             g.moveTo(xPx - R_MARK_LEN_PX / 2, yPx);
             g.lineTo(xPx + R_MARK_LEN_PX / 2, yPx);
@@ -231,13 +268,52 @@ const Graph: React.FC<GraphProps> = React.memo(
               new TextStyle({
                 fontSize: FONT_SIZE,
                 fontFamily: "monospace",
-                fill: "red",
+                fill: PointColor.GRAPH,
               })
             }
           />
         </>
       );
     };
+
+    // --- drag ---
+    const [draggedPointPx, setDraggedPointPx] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
+
+    const startDrag = useCallback(
+      (e: React.MouseEvent) => {
+        if (draggedPointPx || !canvasRef.current || !r) return;
+        setDraggedPointPx(clientPointToPxPoint({ x: e.clientX, y: e.clientY }));
+      },
+      [draggedPointPx, r, clientPointToPxPoint],
+    );
+
+    const drag = useCallback(
+      (e: React.MouseEvent) => {
+        if (!draggedPointPx) return;
+        setDraggedPointPx(clientPointToPxPoint({ x: e.clientX, y: e.clientY }));
+      },
+      [draggedPointPx, clientPointToPxPoint],
+    );
+
+    const cancelDrag = useCallback(() => {
+      if (!draggedPointPx) return;
+      setDraggedPointPx(null);
+    }, [draggedPointPx]);
+
+    const endDrag = useCallback(() => {
+      if (!draggedPointPx) return;
+      setDraggedPointPx(null);
+    }, [draggedPointPx]);
+
+    const drawPreviewPoint = useCallback((g: Graphics) => {
+      g.clear();
+      g.beginFill(PointColor.PREVIEW, 0.5);
+      g.drawCircle(0, 0, 3);
+      g.endFill();
+    }, []);
 
     // --- render ---
     console.log("rendering", canvasWidth, canvasHeight);
@@ -255,6 +331,10 @@ const Graph: React.FC<GraphProps> = React.memo(
           height: canvasHeight,
         }}
         onClick={onClickWrapper}
+        onMouseDown={startDrag}
+        onMouseMove={drag}
+        onMouseLeave={cancelDrag}
+        onMouseUp={endDrag}
         onMount={(app) => {
           canvasRef.current = app.view;
         }}
@@ -264,10 +344,6 @@ const Graph: React.FC<GraphProps> = React.memo(
           {/* (0,0) = center */}
           <GraphicsComponent draw={drawShape} />
           <GraphicsComponent draw={drawGrid} />
-
-          {points.map((point) => (
-            <Point key={point.id} point={point} />
-          ))}
 
           {rMarks.map(({ r, label }) => (
             <React.Fragment key={`rlabel${r}`}>
@@ -287,6 +363,46 @@ const Graph: React.FC<GraphProps> = React.memo(
               />
             </React.Fragment>
           ))}
+
+          {points.map((point) => (
+            <Point key={point.id} point={point} />
+          ))}
+
+          {/* preview point */}
+          {draggedPointPx && (
+            <GraphicsComponent
+              x={draggedPointPx.x}
+              y={draggedPointPx.y}
+              draw={drawPreviewPoint}
+            />
+          )}
+          {draggedPointPx && (
+            <Text
+              text="preview"
+              x={
+                draggedPointPx.x +
+                labelPositionToOffset(
+                  convenientPosition(draggedPointPx.x, -draggedPointPx.y),
+                  FONT_SIZE_SM,
+                ).xOffset
+              }
+              y={
+                draggedPointPx.y +
+                labelPositionToOffset(
+                  convenientPosition(draggedPointPx.x, -draggedPointPx.y),
+                  FONT_SIZE_SM,
+                ).yOffset
+              }
+              anchor={0.5}
+              style={
+                new TextStyle({
+                  fontSize: FONT_SIZE_SM,
+                  fontFamily: "monospace",
+                  fill: PointColor.PREVIEW,
+                })
+              }
+            />
+          )}
         </PixiContainer>
       </Stage>
     );
