@@ -41,8 +41,8 @@ const DashboardForm: React.FC<{
         }),
       r: Yup.number()
         .required("R is required")
-        .min(-5, "R must be at least -5")
-        .max(3, "R must be at most 3"),
+        .positive("R must be positive")
+        .max(4, "R must be at most 3"),
     }),
     onSubmit: (values) => {
       // Dispatch updates to the store on form submit
@@ -111,8 +111,8 @@ const DashboardForm: React.FC<{
         <Form.Label>R</Form.Label>
         <Form.Control
           step={0.5}
-          min={-5}
-          max={3}
+          min={0}
+          max={4}
           onBlur={formik.handleBlur}
           type="number"
           name="r"
