@@ -80,7 +80,7 @@ const HitHistory: React.FC<HitHistoryProps> = ({ hits }) => {
             ))}
           {hits.length === 0 && (
             <tr className="text-center">
-              <td colSpan={6}>HitHistory empty</td>
+              <td colSpan={6}>history empty</td>
             </tr>
           )}
         </tbody>
