@@ -79,19 +79,25 @@ const Dashboard = () => {
         <Col xs={12} lg={6}>
           <h3>
             History
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              className="ms-2"
-              style={{ display: "inline-block" }}
-              onClick={() => {
-                if (window.confirm("clear history?")) {
-                  deleteAllHits();
-                }
-              }}
-            >
-              clear
-            </Button>
+            {hits && hits.length > 0 && (
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                className="ms-2"
+                style={{ display: "inline-block" }}
+                onClick={() => {
+                  if (window.confirm("clear history?")) {
+                    toast.promise(deleteAllHits(), {
+                      loading: "clearing history",
+                      success: "history cleared",
+                      error: "error clearing history",
+                    });
+                  }
+                }}
+              >
+                clear
+              </Button>
+            )}
           </h3>
           {hits && <HitHistory hits={hits} />}
         </Col>

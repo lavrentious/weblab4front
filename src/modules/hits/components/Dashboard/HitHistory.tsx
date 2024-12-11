@@ -48,12 +48,14 @@ const HitHistory: React.FC<HitHistoryProps> = ({ hits }) => {
 
   return (
     <>
-      <Paginator
-        page={page}
-        setPage={setPage}
-        limit={LIMIT}
-        totalPages={Math.ceil(hits.length / LIMIT)}
-      />
+      {hits.length > 0 && (
+        <Paginator
+          page={page}
+          setPage={setPage}
+          limit={LIMIT}
+          totalPages={Math.ceil(hits.length / LIMIT)}
+        />
+      )}
       <Table striped bordered hover>
         <thead>
           <tr>
@@ -85,12 +87,14 @@ const HitHistory: React.FC<HitHistoryProps> = ({ hits }) => {
           )}
         </tbody>
       </Table>
-      <Paginator
-        page={page}
-        setPage={setPage}
-        limit={LIMIT}
-        totalPages={Math.ceil(hits.length / LIMIT)}
-      />
+      {hits.length > 0 && (
+        <Paginator
+          page={page}
+          setPage={setPage}
+          limit={LIMIT}
+          totalPages={Math.ceil(hits.length / LIMIT)}
+        />
+      )}
     </>
   );
 };
