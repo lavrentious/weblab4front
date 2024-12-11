@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from "react";
-import { Col, Container, Row } from "react-bootstrap";
+import { Button, Col, Container, Row } from "react-bootstrap";
 import toast from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { rtkQueryHookErrorToString } from "src/modules/common/utils/rtkQueryHookErrorToString";
@@ -9,7 +9,11 @@ import DashboardForm from "../components/Dashboard/DashboardForm";
 import HitHistory from "../components/Dashboard/HitHistory";
 import Graph from "../components/Graph/Graph";
 import Statusbar from "../components/Statusbar/Statusbar";
-import { useCreateHitMutation, useGetAllHitsQuery } from "../hits.service";
+import {
+  useCreateHitMutation,
+  useDeleteAllHitsMutation,
+  useGetAllHitsQuery,
+} from "../hits.service";
 
 const Dashboard = () => {
   const graphParent = useRef<HTMLDivElement>(null);
@@ -18,6 +22,7 @@ const Dashboard = () => {
   const { r } = useSelector((state: RootState) => state.dashboard);
   const [createHit, { error: createHitError, isLoading: isCreating }] =
     useCreateHitMutation();
+  const [deleteAllHits] = useDeleteAllHitsMutation();
 
   const createHitWithToast = useCallback(
     (x: number, y: number, r: number) => {
@@ -72,7 +77,22 @@ const Dashboard = () => {
 
         {/* History Section */}
         <Col xs={12} lg={6}>
-          <h3>History</h3>
+          <h3>
+            History
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              className="ms-2"
+              style={{ display: "inline-block" }}
+              onClick={() => {
+                if (window.confirm("clear history?")) {
+                  deleteAllHits();
+                }
+              }}
+            >
+              clear
+            </Button>
+          </h3>
           {hits && <HitHistory hits={hits} />}
         </Col>
       </Row>

@@ -29,7 +29,18 @@ export const hitsApi = createApi({
       }),
       invalidatesTags: [{ type: "Hits", id: "LIST" }],
     }),
+    deleteAllHits: builder.mutation<void, void>({
+      query: () => ({
+        url: ``,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "Hits", id: "LIST" }],
+    }),
   }),
 });
 
-export const { useGetAllHitsQuery, useCreateHitMutation } = hitsApi;
+export const {
+  useGetAllHitsQuery,
+  useCreateHitMutation,
+  useDeleteAllHitsMutation,
+} = hitsApi;
